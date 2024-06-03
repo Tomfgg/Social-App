@@ -11,21 +11,22 @@ const { ObjectId } = require('mongodb')
 const addReply = async (req, res, next) => {
     try {
         const { describtion } = req.body
+        if (!describtion && !req.file) throw new AppError('data not found', 404)
         const { id } = req.params
         if (!ObjectId.isValid(id)) throw new AppError('invalid comment id', 400)
         const comment = await Comment.findById(id)
         if (!comment) throw new AppError('comment not found', 404)
-        if (req.files.length > 1) throw new AppError('only one file can be uploaded', 400)
-        else if (req.files.length == 1) {
-            const file = req.files[0]
-            var fileName = file.originalname + '_' + Date.now()
-            const dirPath = path.join(__dirname, '../uploads/posts')
-            const destinationPath = path.join(dirPath, fileName)
-            fs.writeFileSync(destinationPath, file.buffer)
-        }
-        else if (!describtion) throw new AppError('Reply data missing', 400)
-        const reply = await Reply.create({ 'file': fileName, 'user_id': req.user._id, describtion, 'comment_id': id, 'post_id': comment.post_id })
-        comment.replies.push(reply._id)
+        // if (req.files.length > 1) throw new AppError('only one file can be uploaded', 400)
+        // else if (req.files.length == 1) {
+        //     const file = req.files[0]
+        //     var fileName = file.originalname + '_' + Date.now()
+        //     const dirPath = path.join(__dirname, '../uploads/posts')
+        //     const destinationPath = path.join(dirPath, fileName)
+        //     fs.writeFileSync(destinationPath, file.buffer)
+        // }
+        // else if (!describtion) throw new AppError('Reply data missing', 400)
+        const reply = await Reply.create({ 'file': req.file.filename, 'user_id': req.user._id, describtion, 'comment_id': id, 'post_id': comment.post_id })
+        // comment.replies.push(reply._id)
         await comment.save()
         res.json('Reply created successfully')
 
@@ -132,7 +133,7 @@ const getReplies = async (req, res, next) => {
 
         // Iterate over each post
         replies.forEach(reply => {
-            if (reply.file) reply.file = `${req.protocol}://${req.get('host')}/image/${reply.file}`;
+            if (reply.file) reply.file = `${req.protocol}://${req.get('host')}/replyfile/${reply.file}`;
         });
 
         res.send(replies);
@@ -167,7 +168,7 @@ const deleteReply = async (req, res, next) => {
         await Like.deleteMany({ reply_id: id });
 
         await Reply.findByIdAndDelete(id);
-        fs.unlinkSync(path.join(__dirname, '../uploads/posts', reply.file))
+        fs.unlinkSync(path.join(__dirname, '../uploads/replies', reply.file))
         res.json('Reply and associated data successfully deleted');
     }
     catch (err) { next(err) }

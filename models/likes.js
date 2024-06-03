@@ -7,22 +7,28 @@ const likeSchema = new mongoose.Schema({
         required: true,
         index: true
     },
-    comment_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        required: function () { return !this.reply_id },
-        index: true
-    },
-    reply_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        required: function () { return !this.comment_id },
-        index: true
-    },
+    // comment_id: {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     // required: function () { return !this.reply_id },
+    //     index: true
+    // },
+    // reply_id: {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     // required: function () { return !this.comment_id },
+    //     index: true
+    // },
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
         ref: 'users',
         index: true
-    }
+    }, 
+    name: {
+        type: String,
+        min: 3,
+        max: 10,
+        required: true
+    },
 });
 
 likeSchema.pre('save', function (next) {

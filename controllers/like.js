@@ -12,7 +12,7 @@ const processLike = async (req,res,next) => {
     const {media , id} = req.params
     // if (!media || !id) throw new AppError('missing credentials', 401)
     if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-    if (!myMedia.includes(media)) throw new AppError('media should be one of Post or Comment', 400)
+    if (!myMedia.includes(media)) throw new AppError('media should be one of Post or Comment', 400)     
     if (media == 'Post') 
     {
        const post = await Post.findById(id)

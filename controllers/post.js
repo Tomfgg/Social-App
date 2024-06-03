@@ -12,25 +12,27 @@ const jwt = require('jsonwebtoken')
 const addPost = async (req, res, next) => {
     try {
         const { describtion } = req.body
-        const files = req.files
+        const files = []
+        req.files.forEach((file) => files.push(file.filename))
         if (!describtion && !files) throw new AppError('post data missing', 400)
         const user = req.user
-        const dirPath = path.join(__dirname, '../uploads/posts')
-        const images = []
-        Object.values(req.files).forEach(file => {
-            const fileName = file.originalname + '_' + Date.now()
-            // console.log(file.buffer);
-            const destinationPath = path.join(dirPath, fileName)
-            fs.writeFileSync(destinationPath, file.buffer)
-            images.push(fileName)
-            // res.setHeader('Content-Type', 'image/jpeg').send(fs.readFileSync(destinationPath))
-        });
-        await Post.create({ images, 'user_id': user._id, describtion })
+        // const dirPath = path.join(__dirname, '../uploads/posts')
+        // const images = []
+        // Object.values(req.files).forEach(file => {
+        //     const fileName = file.originalname + '_' + Date.now()
+        //     // console.log(file.buffer);
+        //     const destinationPath = path.join(dirPath, fileName)
+        //     fs.writeFileSync(destinationPath, file.buffer)
+        //     images.push(fileName)
+        //     // res.setHeader('Content-Type', 'image/jpeg').send(fs.readFileSync(destinationPath))
+        // });
+        await Post.create({ images: files, 'user_id': user._id, describtion })
         res.json('post created successfully')
 
     }
     catch (err) { next(err) }
 }
+
 
 const updatePost = async (req, res, next) => {
     try {
@@ -56,9 +58,9 @@ const updatePost = async (req, res, next) => {
                 if (!['jpg', 'png'].includes(extension)) throw new AppError('error reading files', 400);
                 const newName = file.originalname + '_' + Date.now()
                 post.images.push(newName)
-                fs.writeFileSync(path.join(__dirname, '../uploads/posts', newName),file.buffer)
+                fs.writeFileSync(path.join(__dirname, '../uploads/posts', newName), file.buffer)
             }
-        }   
+        }
         if (describtion) post.describtion = describtion
         await post.save()
         res.json('post updated successully')
@@ -165,7 +167,7 @@ const getMyPosts = async (req, res, next) => {
         // Iterate over each image in the post
         post.images.forEach((image, index) => {
             // Modify the URL of each image to include protocol and host
-            post.images[index] = `${req.protocol}://${req.get('host')}/image/${image}`;
+            post.images[index] = `${req.protocol}://${req.get('host')}/postfile/${image}`;
         });
     });
 
@@ -408,7 +410,7 @@ const getPost = async (req, res, next) => {
     // Iterate over each image in the post
     post.images.forEach((image, index) => {
         // Modify the URL of each image to include protocol and host
-        post.images[index] = `${req.protocol}://${req.get('host')}/image/${image}`;
+        post.images[index] = `${req.protocol}://${req.get('host')}/postfiles/${image}`;
     });
 
 

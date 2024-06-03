@@ -17,20 +17,20 @@ const addComment = async (req, res, next) => {
         
         const post = await Post.findById(id)
         if (!post) throw new AppError('post not found', 404)
-        function fileHandling(arr) {
-            if (arr.length > 1) return next(new AppError('only one file can be uploaded', 400))
-            else if (arr.length == 1) {
-                const file = arr[0]
-                const fileName = file.originalname + '_' + Date.now()
-                const destinationPath = path.join(__dirname, '../uploads/posts', fileName)
-                fs.writeFileSync(destinationPath, file.buffer)
-                return fileName
-            }
-            else if (!describtion) return next(new AppError('comment data missing', 400))
-        }
-        const fileName = fileHandling(req.files)
+        // function fileHandling(arr) {
+        //     if (arr.length > 1) return next(new AppError('only one file can be uploaded', 400))
+        //     else if (arr.length == 1) {
+        //         const file = arr[0]
+        //         const fileName = file.originalname + '_' + Date.now()
+        //         const destinationPath = path.join(__dirname, '../uploads/posts', fileName)
+        //         fs.writeFileSync(destinationPath, file.buffer)
+        //         return fileName
+        //     }
+        //     else if (!describtion) return next(new AppError('comment data missing', 400))
+        // }
+        // const fileName = fileHandling(req.files)
         // const arr = [id]
-        await Comment.create({ 'file': fileName, 'user_id': req.user._id, describtion, 'post_id': id })
+        await Comment.create({ 'file': req.file.filename, 'user_id': req.user._id, describtion, 'post_id': id })
 
         res.json('Comment created successfully')
     }
@@ -108,7 +108,7 @@ const getComments = async (req, res, next) => {
             
             {
                 $addFields: {
-                    totalLikes: { $size: '$likes' }, replies: { $size: '$replies' }, username: '$user.name', username: '$user.name', liked: {
+                    totalLikes: { $size: '$likes' },  username: '$user.name', username: '$user.name', liked: {
                         $cond: {
                             if: { $eq: [{ $size: '$liked' }, 1] },
                             then: true,
@@ -138,7 +138,7 @@ const getComments = async (req, res, next) => {
 
         // Iterate over each post
         comments.forEach(comment => {
-            if (comment.file) comment.file = `${req.protocol}://${req.get('host')}/image/${comment.file}`;
+            if (comment.file) comment.file = `${req.protocol}://${req.get('host')}/commentfile/${comment.file}`;
         });
         // const hah = await Comment.find().populate('user_id')
         res.send(comments);
@@ -185,7 +185,7 @@ const deleteComment = async (req,res,next) => {
 
         // Finally, delete the post itself
         await Comment.findByIdAndDelete(id);
-        fs.unlinkSync(path.join(__dirname, '../uploads/posts', comment.file))
+        fs.unlinkSync(path.join(__dirname, '../uploads/comments', comment.file))
         res.json('Comment and associated data successfully deleted');
 }
 catch(err) {next(err)}

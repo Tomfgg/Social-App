@@ -18,7 +18,22 @@ const postSchema = new mongoose.Schema({
         index: true
     },
     createdAt: { type: Date, default: Date.now },
+    likes: {
+        type: Number,
+        default: 0
+    },
+    comments: {
+        type: Number,
+        default: 0
+    },
 })
+
+postSchema.virtual('reacts', {
+    ref: 'Like',           // The model to use
+    localField: '_id',     // Find posts where `localField`
+    foreignField: 'post_id',// is equal to `foreignField`
+    justOne: false,        // Set to false for an array of results
+});
 
 const postModel = mongoose.model('posts', postSchema)
 module.exports = postModel

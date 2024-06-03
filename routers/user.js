@@ -12,7 +12,7 @@ router.use(userVerification)
 
 router.get('/', getUser)
 router.get('/:id', getData)
-router.put('/', updateUser)
+router.put('/', updateUser) 
 router.delete('/', deleteUser)
 
 
