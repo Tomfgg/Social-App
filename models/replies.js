@@ -15,17 +15,17 @@ const replySchema = new mongoose.Schema({
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        index: true
-    },
-    post_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        required: true,
-        index: true
+        index: true,
+        ref: 'users'
     },
     comment_id: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
         index: true
+    },
+    likes: {
+        type: Number,
+        default: 0
     }
 })
 

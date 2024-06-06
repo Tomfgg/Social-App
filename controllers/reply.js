@@ -1,4 +1,3 @@
-const User = require('../models/users')
 const Comment = require('../models/comments')
 const Reply = require('../models/replies')
 const Like = require('../models/likes')
@@ -16,17 +15,8 @@ const addReply = async (req, res, next) => {
         if (!ObjectId.isValid(id)) throw new AppError('invalid comment id', 400)
         const comment = await Comment.findById(id)
         if (!comment) throw new AppError('comment not found', 404)
-        // if (req.files.length > 1) throw new AppError('only one file can be uploaded', 400)
-        // else if (req.files.length == 1) {
-        //     const file = req.files[0]
-        //     var fileName = file.originalname + '_' + Date.now()
-        //     const dirPath = path.join(__dirname, '../uploads/posts')
-        //     const destinationPath = path.join(dirPath, fileName)
-        //     fs.writeFileSync(destinationPath, file.buffer)
-        // }
-        // else if (!describtion) throw new AppError('Reply data missing', 400)
-        const reply = await Reply.create({ 'file': req.file.filename, 'user_id': req.user._id, describtion, 'comment_id': id, 'post_id': comment.post_id })
-        // comment.replies.push(reply._id)
+        await Reply.create({ 'file': req.file.filename, 'user_id': req.user._id, describtion, 'comment_id': id })
+        comment.replies++
         await comment.save()
         res.json('Reply created successfully')
 
@@ -55,88 +45,19 @@ const getReplies = async (req, res, next) => {
         const skip = parseInt(req.query.skip)
         if (!skip && skip != 0) throw new AppError('skip value needed', 400)
         const limit = 3
-        // const myMedia = ['Post', 'Comment']
         const { id } = req.params
         if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-        
+
         const objectId = new ObjectId(id);
-        const replies = await Reply.aggregate([
-            {
-                $match: { 'comment_id': objectId }
-            },
-            {
-                $lookup: {
-                    from: "likes",
-                    let: { reply_id: "$_id", user_id: req.user?._id },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: {
-                                    $and: [
-                                        { $eq: ["$reply_id", "$$reply_id"] },
-                                        { $eq: ["$user_id", "$$user_id"] }
-                                    ]
-                                }
-                            }
-                        }
-                    ],
-                    as: "liked"
-                }
-            },
-            {
-                $lookup: {
-                    from: 'likes', // The name of the Likes collection
-                    localField: '_id', // Field from the Posts collection
-                    foreignField: 'reply_id', // Field from the Likes collection
-                    as: 'likes' // Output array field name
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users', // The name of the Likes collection
-                    localField: 'user_id', // Field from the Posts collection
-                    foreignField: '_id', // Field from the Likes collection
-                    as: 'user' // Output array field name
-                }
-            },
-            { $unwind: '$user' },
-            
-            {
-                $addFields: {
-                    totalLikes: { $size: '$likes' }, username: '$user.name', liked: {
-                        $cond: {
-                            if: { $eq: [{ $size: '$liked' }, 1] },
-                            then: true,
-                            else: false
-                        }
-                    } }
-            },
-            
-            {
-                $project: {
-                    likes: 0, // Exclude the 'likes' array from the output
-                    user: 0,
-                    user_id:0,
-                    post_id:0,
-                    comment_id:0
 
-                }
-            },
-            {
-                $sort: { createdAt: -1 }
-            },
-            { $skip: skip }, // Skip the first 10 documents
-
-            // Limit the number of documents returned
-            { $limit: limit } // 
-        ])
-
-        // Iterate over each post
+        const replies = await Reply.find({ comment_id: id }).populate({
+            path: 'user_id',
+            select: 'name' // Include only `name` and `email` fields from `User`
+        })
         replies.forEach(reply => {
             if (reply.file) reply.file = `${req.protocol}://${req.get('host')}/replyfile/${reply.file}`;
         });
-
-        res.send(replies);
+        res.json(replies)
     }
     catch (err) { next(err) }
 }
@@ -164,12 +85,18 @@ const deleteReply = async (req, res, next) => {
             throw new AppError('Unauthorized', 401);
         }
 
-        // Delete all likes associated with the post
-        await Like.deleteMany({ reply_id: id });
+        // Delete all likes associated with the reply
+        await Like.deleteMany({ reply_id: reply._id });
 
-        await Reply.findByIdAndDelete(id);
-        fs.unlinkSync(path.join(__dirname, '../uploads/replies', reply.file))
-        res.json('Reply and associated data successfully deleted');
+        // Delete the reply document
+        await Reply.findByIdAndDelete(reply._id);
+        // delete the reply file if exists
+        if (reply.file) fs.unlinkSync(path.join(__dirname, '../uploads/replies', reply.file))
+        // decrease the count of total replies in the comment
+        const comment = await Comment.findByIdAndUpdate(reply.comment_id, { $inc: { replies: -1 } })
+        // decrease the count of total comments in the post
+        await Post.findByIdAndUpdate(comment.post_id, { $inc: { comments: -1 } })
+        res.json('Reply successfully deleted');
     }
     catch (err) { next(err) }
 }

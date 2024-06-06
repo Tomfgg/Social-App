@@ -1,13 +1,12 @@
-const User = require('../models/users')
 const Post = require('../models/posts')
 const Comment = require('../models/comments')
+const Friend = require('../models/friends');
 const Like = require('../models/likes')
 const Reply = require('../models/replies')
 const AppError = require('../utils/AppError')
 const fs = require('fs')
 const path = require('path')
 const { ObjectId } = require('mongodb')
-const jwt = require('jsonwebtoken')
 
 const addPost = async (req, res, next) => {
     try {
@@ -16,16 +15,6 @@ const addPost = async (req, res, next) => {
         req.files.forEach((file) => files.push(file.filename))
         if (!describtion && !files) throw new AppError('post data missing', 400)
         const user = req.user
-        // const dirPath = path.join(__dirname, '../uploads/posts')
-        // const images = []
-        // Object.values(req.files).forEach(file => {
-        //     const fileName = file.originalname + '_' + Date.now()
-        //     // console.log(file.buffer);
-        //     const destinationPath = path.join(dirPath, fileName)
-        //     fs.writeFileSync(destinationPath, file.buffer)
-        //     images.push(fileName)
-        //     // res.setHeader('Content-Type', 'image/jpeg').send(fs.readFileSync(destinationPath))
-        // });
         await Post.create({ images: files, 'user_id': user._id, describtion })
         res.json('post created successfully')
 
@@ -69,420 +58,66 @@ const updatePost = async (req, res, next) => {
 }
 
 const getMyPosts = async (req, res, next) => {
-    // const posts = await Post.find({ 'user_id': req.user._id }).sort({ createdAt: -1 });
-    const posts = await Post.aggregate([
-        {
-            $match: { 'user_id': req.user._id }
-        },
-        {
-            $lookup: {
-                from: 'likes', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'likes' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: "likes",
-                let: { post_id: "$_id", user_id: req.user?._id },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$post_id", "$$post_id"] },
-                                    { $eq: ["$user_id", "$$user_id"] }
-                                ]
-                            }
-                        }
-                    }
-                ],
-                as: "liked"
-            }
-        },
-        {
-            $lookup: {
-                from: 'comments', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'comments' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'replies', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'replies' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'users', // The name of the Likes collection
-                localField: 'user_id', // Field from the Posts collection
-                foreignField: '_id', // Field from the Likes collection
-                as: 'user' // Output array field name
-            }
-        },
-        { $unwind: '$user' },
-        {
-            $addFields: {
-                totalLikes: { $size: '$likes' }, liked: {
-                    $cond: {
-                        if: { $eq: [{ $size: '$liked' }, 1] },
-                        then: true,
-                        else: false
-                    }
-                }
-            }
-        },
-        {
-            $addFields: {
-                totalComments: {
-                    $sum: [
-                        { $size: "$comments" }, // Calculate the size of the "comments" array
-                        { $size: "$replies" }   // Calculate the size of the "replies" array
-                    ]
-                },
-                username: '$user.name'
-            }
-        },
-        {
-            $project: {
-                likes: 0,
-                comments: 0,// Exclude the 'likes' array from the output
-                replies: 0,// Exclude the 'likes' array from the output
-                user: 0,
-                user_id: 0
-            }
-        },
-        {
-            $sort: { createdAt: -1 }
+    const posts = await Post.find({ user_id: req.user._id }, { user_id: false })
+    const postPromises = posts.map(async post => {
+        const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
+        if (isLiked != null) {
+            post.liked = true;
         }
-    ])
-
-    // Iterate over each post
-    posts.forEach(post => {
-        // Iterate over each image in the post
-        post.images.forEach((image, index) => {
-            // Modify the URL of each image to include protocol and host
-            post.images[index] = `${req.protocol}://${req.get('host')}/postfile/${image}`;
-        });
+        if (post.images) {
+            post.images = post.images.map(image => `${req.protocol}://${req.get('host')}/postfile/${image}`);
+        }
     });
-
-    // Send the modified posts array as the response
-    res.send(posts);
+    await Promise.all(postPromises);
+    res.json(posts);
 }
 
 const getPosts = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (token) {
-        jwt.verify(token, 'hamada', async (err, decode) => {
-            if (err) return
-            const { id } = decode
-            const user = await User.findById(id)
-            if (!user) return
-            req.user = user
-        })
-    }
-    const posts = await Post.aggregate([
-        {
-            $match: { user_id: { $in: req.user.friends } }
-        },
-        {
-            $lookup: {
-                from: 'likes', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'likes' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: "likes",
-                let: { post_id: "$_id", user_id: req.user?._id },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$post_id", "$$post_id"] },
-                                    { $eq: ["$user_id", "$$user_id"] }
-                                ]
-                            }
-                        }
-                    }
-                ],
-                as: "liked"
-            }
-        },
-        {
-            $lookup: {
-                from: 'comments', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'comments' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'replies', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'replies' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'users', // The name of the Likes collection
-                localField: 'user_id', // Field from the Posts collection
-                foreignField: '_id', // Field from the Likes collection
-                as: 'user' // Output array field name
-            }
-        },
-        { $unwind: '$user' },
-        {
-            $addFields: {
-                totalLikes: { $size: '$likes' }, liked: {
-                    $cond: {
-                        if: { $eq: [{ $size: '$liked' }, 1] },
-                        then: true,
-                        else: false
-                    }
-                }
-            }
-        },
-        {
-            $addFields: {
-                totalComments: {
-                    $sum: [
-                        { $size: "$comments" }, // Calculate the size of the "comments" array
-                        { $size: "$replies" }   // Calculate the size of the "replies" array
-                    ]
-                },
-                username: '$user.name'
-            }
-        },
-        {
-            $project: {
-                likes: 0,
-                comments: 0,// Exclude the 'likes' array from the output
-                replies: 0,// Exclude the 'likes' array from the output
-                user: 0,
-                user_id: 0
-            }
-        },
-        {
-            $sort: { createdAt: -1 }
+    const id = req.user._id
+    const friends1 = await Friend.find({ user: id })
+    const friendsids1 = friends1.map(friend => friend.friend.toString())
+    const friends2 = await Friend.find({ friend: id })
+    const friendsids2 = friends2.map(friend => friend.user.toString())
+    const posts = await Post.find({ user_id: { $in: friendsids1.concat(friendsids2) } }).populate({
+        path: 'user_id',
+        select: 'name'
+    })
+    const postPromises = posts.map(async post => {
+        // Check if the user liked the post
+        const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
+        if (isLiked != null) {
+            post.liked = true;
         }
-    ])
 
-    // Iterate over each post
-    posts.forEach(post => {
-        // Iterate over each image in the post
-        post.images.forEach((image, index) => {
-            // Modify the URL of each image to include protocol and host
-            post.images[index] = `${req.protocol}://${req.get('host')}/image/${image}`;
-        });
+        // Update image URLs
+        if (post.images) {
+            post.images = post.images.map(image => `${req.protocol}://${req.get('host')}/postfile/${image}`);
+        }
     });
 
-    // Send the modified posts array as the response
-    res.send(posts);
+    // Wait for all promises to resolve
+    await Promise.all(postPromises);
+
+    // Send the response
+    res.json(posts);
 }
 
 const getPost = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (token) {
-        jwt.verify(token, 'hamada', async (err, decode) => {
-            if (err) return
-            const { id } = decode
-            const user = await User.findById(id)
-            if (!user) return
-            req.user = user
-        })
-    }
     const { id } = req.params
-    if (!id) throw new AppError('missing credentials', 400)
     if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-    let post = await Post.findById(id)
+    const post = await Post.findById(id).populate({
+        path: 'user_id',
+        select: 'name'
+    })
     if (!post) throw new AppError('post not found', 404)
-    const limit = 10
-    const objectId = new ObjectId(id);
-    post = await Post.aggregate([
-        {
-            $match: {
-                _id: objectId
-            }
-        },
-        {
-            $lookup: {
-                from: "likes",
-                let: { post_id: "$_id", user_id: req.user?._id },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$post_id", "$$post_id"] },
-                                    { $eq: ["$user_id", "$$user_id"] }
-                                ]
-                            }
-                        }
-                    }
-                ],
-                as: "liked"
-            }
-        },
-        {
-            $lookup: {
-                from: 'likes', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'likes' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'comments', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'comments' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'replies', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'post_id', // Field from the Likes collection
-                as: 'replies' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'users', // The name of the Likes collection
-                localField: 'user_id', // Field from the Posts collection
-                foreignField: '_id', // Field from the Likes collection
-                as: 'user' // Output array field name
-            }
-        },
-        { $unwind: '$user' },
-        {
-            $addFields: {
-                totalLikes: { $size: '$likes' },
-                liked: {
-                    $cond: {
-                        if: { $eq: [{ $size: '$liked' }, 1] },
-                        then: true,
-                        else: false
-                    }
-                }
-            }
-        },
-
-        {
-            $addFields: {
-                totalComments: {
-                    $sum: [
-                        { $size: "$comments" }, // Calculate the size of the "comments" array
-                        { $size: "$replies" }   // Calculate the size of the "replies" array
-                    ]
-                },
-                username: '$user.name'
-            }
-        },
-        {
-            $project: {
-                likes: 0,
-                comments: 0,// Exclude the 'likes' array from the output
-                replies: 0,// Exclude the 'likes' array from the output
-                user: 0,
-                user_id: 0
-            }
-        },
-        {
-            $sort: { createdAt: -1 }
-        }
-    ])
-
-    // Iterate over each post
-    post = post[0]
-    // Iterate over each image in the post
-    post.images.forEach((image, index) => {
-        // Modify the URL of each image to include protocol and host
-        post.images[index] = `${req.protocol}://${req.get('host')}/postfiles/${image}`;
-    });
-
-
-    const comments = await Comment.aggregate([
-        {
-            $match: { 'post_id': objectId }
-        },
-        {
-            $lookup: {
-                from: "likes",
-                let: { comment_id: "$_id", user_id: req.user?._id },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$comment_id", "$$comment_id"] },
-                                    { $eq: ["$user_id", "$$user_id"] }
-                                ]
-                            }
-                        }
-                    }
-                ],
-                as: "liked"
-            }
-        },
-        {
-            $lookup: {
-                from: 'likes', // The name of the Likes collection
-                localField: '_id', // Field from the Posts collection
-                foreignField: 'comment_id', // Field from the Likes collection
-                as: 'likes' // Output array field name
-            }
-        },
-        {
-            $lookup: {
-                from: 'users', // The name of the Likes collection
-                localField: 'user_id', // Field from the Posts collection
-                foreignField: '_id', // Field from the Likes collection
-                as: 'user' // Output array field name
-            }
-        },
-        { $unwind: '$user' },
-        {
-            $addFields: {
-                totalLikes: { $size: '$likes' }, replies: { $size: '$replies' }, username: '$user.name', liked: {
-                    $cond: {
-                        if: { $eq: [{ $size: '$liked' }, 1] },
-                        then: true,
-                        else: false
-                    }
-                }
-            }
-        },
-        {
-            $project: {
-                likes: 0, // Exclude the 'likes' array from the output
-                user: 0,
-                user_id: 0,
-                post_id: 0
-            }
-        },
-        {
-            $sort: { createdAt: -1 }
-        },
-        { $limit: limit } // 
-    ])
-    comments.forEach(comment => {
-        if (comment.file) comment.file = `${req.protocol}://${req.get('host')}/image/${comment.file}`;
-    });
-    post.comments = comments
-    res.send(post);
+    const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
+    if (isLiked != null) {
+        post.liked = true;
+    }
+    if (post.images) {
+        post.images = post.images.map(image => `${req.protocol}://${req.get('host')}/postfile/${image}`);
+    }
+    res.json(post);
 }
 
 const deletePost = async (req, res, next) => {
@@ -508,43 +143,40 @@ const deletePost = async (req, res, next) => {
             throw new AppError('Unauthorized', 401);
         }
 
-        // Delete all likes associated with the post
-        await Like.deleteMany({ post_id: id });
-
-        // Delete all comments associated with the post
-        const comments = await Comment.find({ post_id: id });
-
+        // first delete the likes of the post
+        await Like.deleteMany({ post_id: post._id });
+        // get all comments related to the post 
+        const comments = await Comment.find({ post_id: post._id });
+        // loop through the comments to delete it and its related documents
         for (const comment of comments) {
             // Delete all likes associated with the comment
             await Like.deleteMany({ comment_id: comment._id });
+            // get all replies related to the comment
+            const replies = await Reply.find({ comment_id: comment._id });
+            // loop through the replies to delete it and its related documents
+            for (const reply of replies) {
+                // Delete all likes associated with the reply
+                await Like.deleteMany({ reply_id: reply._id });
 
-            // Delete the comment
+                // Delete the reply
+                await Reply.findByIdAndDelete(reply._id);
+                if (reply.file) fs.unlinkSync(path.join(__dirname, '../uploads/replies', reply.file))
+            }
+            // Delete the comment document
             await Comment.findByIdAndDelete(comment._id);
-            fs.unlinkSync(path.join(__dirname, '../uploads/posts', comment.file))
+            // delete the comment file
+            if (comment.file) fs.unlinkSync(path.join(__dirname, '../uploads/comments', comment.file))
         }
-
-        // Delete all replies associated with the post
-        const replies = await Reply.find({ post_id: id });
-
-        for (const reply of replies) {
-            // Delete all likes associated with the reply
-            await Like.deleteMany({ reply_id: reply._id });
-
-            // Delete the reply
-            await Reply.findByIdAndDelete(reply._id);
-            fs.unlinkSync(path.join(__dirname, '../uploads/posts', reply.file))
-        }
-
-        // Finally, delete the post itself
-        await Post.findByIdAndDelete(id);
-
+        // delete the post
+        await Post.findByIdAndDelete(post._id);
+        // loop through post files to delete it
         post.images.forEach((image) => {
-            // Modify the URL of each image to include protocol and host
+            // delete all files of the post
             fs.unlinkSync(path.join(__dirname, '../uploads/posts', image))
         });
-
-        res.json('Post and associated data successfully deleted');
-    } catch (err) {
+        res.json('Post successfully deleted');
+    }
+    catch (err) {
         next(err);
     }
 };

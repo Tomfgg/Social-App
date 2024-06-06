@@ -15,7 +15,8 @@ const postSchema = new mongoose.Schema({
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        index: true
+        index: true,
+        ref: 'users'
     },
     createdAt: { type: Date, default: Date.now },
     likes: {
@@ -26,6 +27,7 @@ const postSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    liked: Boolean
 })
 
 postSchema.virtual('reacts', {

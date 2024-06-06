@@ -22,28 +22,12 @@ const userSchema = new mongoose.Schema({
         max: 10,
         required: true
     },
-    sent: {
-        type: [mongoose.Schema.Types.ObjectId],
-        default: [],
-        ref: 'users',
-        index:true
-        // select: false
-    },
-    received: {
-        type: [mongoose.Schema.Types.ObjectId],
-        default: [],
-        ref: 'users',
-        index: true
-        // select: false
-    },
-    friends: {
-        type: [mongoose.Schema.Types.ObjectId],
-        default: [],
-        ref: 'users',
-        index: true
-        // select: false
-    },
+    friends: Number,
+    relation: {
+        type: String,
+        enum: ['friend', 'isent', 'ireceived', 'none'] // Allowed values for the 'role' field
+    }
 })
 
-const userModel = mongoose.model('users',userSchema)
+const userModel = mongoose.model('users', userSchema)
 module.exports = userModel

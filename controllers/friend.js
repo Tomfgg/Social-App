@@ -1,99 +1,137 @@
 const User = require('../models/users')
-const Comment = require('../models/comments')
-const Post = require('../models/posts')
-const Like = require('../models/likes')
-const Reply = require('../models/replies')
+const Friend = require('../models/friends');
 const AppError = require('../utils/AppError')
-const fs = require('fs')
-const path = require('path')
 const { ObjectId } = require('mongodb')
 
-const addFriend = async (req,res,next) => {
+const addFriend = async (req, res, next) => {
     try {
-    const {id} = req.params
-    if (id == String(req.user._id)) throw new AppError('invalid id', 400)
-    if (!ObjectId.isValid(id)) throw new AppError('invalid id', 400)
-    if (req.user.friends.includes(id) || req.user.sent.includes(id) || req.user.received.includes(id)) throw new AppError('user already exists', 400)
-    const user = await User.findById(id)
-    if (!user) throw new AppError('user not found', 404)
-    const me = req.user
-    user.received.push(me._id)
-    me.sent.push(user._id)
-    await me.save()
-    await user.save()
-    res.json('friend request sent successfully')
+        const myid = req.user._id
+        const friendid = req.params.id
+        if (friendid == String(req.user._id)) throw new AppError('invalid id', 400)
+        if (!ObjectId.isValid(friendid)) throw new AppError('invalid id', 400)
+        const friend = await User.findById(friendid)
+        if (!friend) throw new AppError('user not found', 404)
+        const exists = await Friend.findOne({
+            $or: [{
+                $and: [{ friend: myid },
+                { user: friendid }]
+            }, { $and: [{ user: myid }, { friend: friendid }] }]
+        })
+        if (exists) throw new AppError('friend already exists', 400)
+        await Friend.create({ user: myid, friend: friendid })
+        res.json('friend request sent successfully')
     }
-    catch (err) {next(err)}
+    catch (error) {
+        next(error)
+    }
 }
 
 const removeFriend = async (req, res, next) => {
     try {
-    const { id } = req.params
-    if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-    const user = await User.findById(id)
-    if (!user) throw new AppError('user not found', 404)
-    const me = req.user
-    if (!user.friends.includes(me._id)) throw new AppError('friend not found', 404)
-    user.friends.pull(me._id)
-    me.friends.pull(user._id)
-    await me.save()
-    await user.save()
-    res.json('friend successfully removed')
+        const myid = req.user._id
+        const friendid = req.params.id
+        if (friendid == String(req.user._id)) throw new AppError('invalid id', 400)
+        if (!ObjectId.isValid(friendid)) throw new AppError('invalid id', 400)
+        const friend = await User.findById(friendid)
+        if (!friend) throw new AppError('user not found', 404)
+        const relation = await Friend.findOne({
+            $and: [{ status: 'accepted' },
+            {
+                $or: [{
+                    $and: [{ friend: myid },
+                    { user: friendid }]
+                }, { $and: [{ user: myid }, { friend: friendid }] }]
+            }
+            ]
+        })
+        if (!relation) throw new AppError('friend relation does not exist', 400)
+        await relation.deleteOne()
+        res.json('friend relation removed')
     }
-    catch (err) { next(err) }
+    catch (error) {
+        next(error)
+    }
 }
 
-const acceptFriend = async (req,res,next) => {
+const acceptFriend = async (req, res, next) => {
     try {
-    const {id} = req.params
-    if (!id) throw new AppError('id not found', 404)
-    if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-    const user = await User.findById(id)
-    if (!user) throw new AppError('user not found', 404)
-    const me = req.user 
-    if (!me.received.includes(user._id)) throw new AppError('user not found', 404)
-    user.sent.pull(me._id)
-    me.received.pull(user._id)
-    me.friends.push(user._id)
-    user.friends.push(me._id)
-    await me.save()
-    await user.save()
-    res.json('friend added successfully')
+        const myid = req.user._id
+        const friendid = req.params.id
+        if (friendid == String(req.user._id)) throw new AppError('invalid id', 400)
+        if (!ObjectId.isValid(friendid)) throw new AppError('invalid id', 400)
+        const friend = await User.findById(friendid)
+        if (!friend) throw new AppError('user not found', 404)
+        const request = await Friend.findOne({ $and: [{ status: 'pending' }, { $and: [{ user: friendid }, { friend: myid }] }] })
+        if (!request) throw new AppError('friend request not found', 404)
+        request.status = 'accepted'
+        await request.save()
+        res.json('friend request accepted')
     }
-    catch (err) { next(err) }
+    catch (error) {
+        next(error)
+    }
 }
 
-const rejectFriend = async (req,res,next) => {
+const rejectFriend = async (req, res, next) => {
     try {
-    const {id} = req.params
-    if (!id) throw new AppError('id not found', 404)
-    if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
-    const user = await User.findById(id)
-    if (!user) throw new AppError('user not found', 404)
-    const me = req.user
-    user.sent.pull(me._id)
-    me.received.pull(user._id)
-    await me.save()
-    await user.save()
-    res.json('friend request rejected')
+        const myid = req.user._id
+        const friendid = req.params.id
+        if (friendid == String(req.user._id)) throw new AppError('invalid id', 400)
+        if (!ObjectId.isValid(friendid)) throw new AppError('invalid id', 400)
+        const friend = await User.findById(friendid)
+        if (!friend) throw new AppError('user not found', 404)
+        const request = await Friend.findOne({
+            $and: [{ status: 'pending' },
+            {
+                $or: [{
+                    $and: [{ friend: myid },
+                    { user: friendid }]
+                }, { $and: [{ user: myid }, { friend: friendid }] }]
+            }
+            ]
+        })
+        if (!request) throw new AppError('friend request not found', 404)
+        await request.deleteOne()
+        res.json('friend request removed')
     }
-    catch (err) { next(err) }
+    catch (error) {
+        next(error)
+    }
 }
 
-const getFriends = async (req,res,next) => {
-    const user = await User.findById(req.user._id).populate('friends')
-    res.json(user.friends)
+const getFriends = async (req, res, next) => {
+    const id = req.user._id
+    const friendsMeUser = await Friend.find({ $and: [{ user: id }, { status: 'accepted' }] }).populate({
+        path: 'friend',
+        select: 'name'
+    })
+    const friendsMeFriend = await Friend.find({ $and: [{ friend: id }, { status: 'accepted' }] }).populate({
+        path: 'user',
+        select: 'name'
+    })
+    const part1 = friendsMeUser.map(friend => friend.friend)
+    const part2 = friendsMeFriend.map(friend => friend.user)
+    res.json(part1.concat(part2))
 }
 
-const getSentRequests = async (req,res,next) => {
-    const users = await User.findById(req.user._id).populate('sent')
-    res.json(users.sent)
+const getSentRequests = async (req, res, next) => {
+    const id = req.user._id
+    const sentRequests = await Friend.find({ $and: [{ user: id }, { status: 'pending' }] }).populate({
+        path: 'friend',
+        select: 'name'
+    })
+    const sent = sentRequests.map(friend => friend.friend)
+    res.json(sent)
 }
 
-const getReceivedRequests = async (req,res,next) => {
-    const users = await User.findById(req.user._id).populate('received')
-    res.json(users.received)
+const getReceivedRequests = async (req, res, next) => {
+    const id = req.user._id
+    const receivedRequests = await Friend.find({ $and: [{ friend: id }, { status: 'pending' }] }).populate({
+        path: 'user',
+        select: 'name'
+    })
+    const received = receivedRequests.map(friend => friend.user)
+    res.json(received)
 }
-
 
 module.exports = { addFriend, removeFriend, acceptFriend, rejectFriend, getFriends, getSentRequests, getReceivedRequests }
