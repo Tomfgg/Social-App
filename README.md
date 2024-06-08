@@ -30,5 +30,12 @@ A social media application built with Node.js, Express.js, and MongoDB.
 * File Handling: Supports file uploads.
 * Authentication: JSON Web Token (JWT) for secure authentication.
 ## API Endpoints
-## Users
-* Create user: `POST /users`
+## Postman Collection
+To simplify API testing and exploration, you can use the provided Postman collection.
+1) Download the Postman Collection:
+* The collection file is available in the Postman folder of this repository. 
+2) Import the Collection into Postman:
+* Open Postman.
+* Click on Import.
+* Select Upload Files and choose the downloaded JSON file.
+* The collection will be imported and available for use.
