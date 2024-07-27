@@ -8,11 +8,14 @@ const AppError = require('../utils/AppError')
 const { ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const Friend = require('../models/friends')
+const path = require('path')
+const fs = require('fs')
 require('dotenv').config()
 const secret = process.env.SECRET
 
 const getUser = async (req, res, next) => {
     req.user.friends = (await Friend.find({ $and: [{ status: 'accepted' }, { $or: [{ user: req.user._id }, { friend: req.user._id }] }] })).length
+    if(req.user.image) req.user.image = `http://127.0.0.1:5000/profileImage/${req.user.image}`
     return res.json(req.user)   
 }
 
@@ -24,27 +27,28 @@ const getData = async (req, res, next) => {
     const user = await User.findById(id)
     if (!user) throw new AppError('user not found', 404)
     user.friends = (await Friend.find({$and: [{ status: 'accepted' },{$or: [{user:id},{friend:id}]}]})).length
-    relation = await Friend.find({ $and: [{ status: 'accepted' }, 
+    relation = await Friend.findOne({ $and: [{ status: 'accepted' }, 
         {$or: [{ $and: [{ user: id }, { friend: req.user._id }] }, { $and: [{ user: req.user._id }, { friend: id  }] }] }]})
     if (relation) {
         user.relation = 'friend'
-       return res.json(user)
+       return res.json(user)    
     }
-    relation = await Friend.find({ $and: [{ status: 'pending' }, { $and: [{ user: id }, { friend: req.user._id }] }] }) 
+    relation = await Friend.findOne({ $and: [{ status: 'pending' }, { $and: [{ user: id }, { friend: req.user._id }] }] }) 
     if (relation) {
         user.relation = 'ireceived'
         return res.json(user)
     }
-    relation = await Friend.find({ $and: [{ status: 'pending' }, { $and: [{ user: req.user._id }, { friend:id }] }] }) 
+    relation = await Friend.findOne({ $and: [{ status: 'pending' }, { $and: [{ user: req.user._id }, { friend:id }] }] }) 
     if (relation) {
         user.relation = 'isent'
         return res.json(user)
     }
     user.relation = 'none'
-    res.json(user)
+    // if (user.image) user.image = `http://127.0.0.1:5000/profileImage/${user.image}`
+    res.json(user)  
 }
 
-const login = async (req, res, next) => {
+const login = async (req, res, next) => {   
     try {
         const { email, password } = req.body
         if (!email || !password) throw new AppError('missing credentials', 400)
@@ -61,10 +65,17 @@ const login = async (req, res, next) => {
 }
 const addUser = async (req, res, next) => {
     try {
-        const { email, password, name } = req.body
+        const { email, password,confirmPassword, name } = req.body
+        if (password !== confirmPassword) throw new AppError('Passwords did not match', 400)
         if (!email || !password || !name) throw new AppError('missing credentials', 400)
+        if (password.length < 5) throw new AppError('Password should have at least 5 characters',400)
+        if (name.length < 3) throw new AppError('Username should have at least 3 characters',400)
+        const nameRegex = /^[A-Za-z\s]+$/;
+        if (!nameRegex.test(name)) {  
+            throw new AppError('Name should only contain English characters.',400);
+        }
         const user = await User.findOne({ email })
-        if (user) throw new AppError('user already exists', 409)
+        if (user) throw new AppError('Email already exists', 409)
         const hashedPassword = await bcrypt.hash(password, 10)
         const userCreated = await User.create({ email, 'password': hashedPassword, name })
         userCreated.password = undefined
@@ -77,13 +88,24 @@ const addUser = async (req, res, next) => {
 const updateUser = async function (req, res, next) {
     try {
         const user = req.user
-        const { password, name } = req.body
-        if (!password || !name) throw new AppError('missing credentials', 400)
-        const hashedPassword = await bcrypt.hash(password, 10)
-        user.password = hashedPassword
+        const { name, oldImage } = req.body // password
+        if (!name) throw new AppError('missing credentials', 400) // !password
+        // const hashedPassword = await bcrypt.hash(password, 10)
+        // user.password = hashedPassword
         user.name = name
-        user.save()
-        res.status(200).json('updated successfully')
+        const newImage = req.file
+        if (!oldImage && user.image) {
+            const filePath = path.join(__dirname, '../uploads/profileImage', user.image);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath)
+                user.image = null
+            }
+        }
+        if (newImage) user.image = newImage.filename
+        await user.save()
+        if (newImage) user.image = `http://127.0.0.1:5000/profileImage/${user.image}`
+        if (oldImage) user.image = oldImage 
+        res.status(200).json(user)
     }
     catch (err) {
         next(err)
@@ -103,7 +125,7 @@ const getUsers = async (req, res, next) => {
         if (!post) throw new AppError('post not found', 404)
          likes = await Like.find({ post_id: id }).populate({
             path: 'user_id',
-            select: 'name' // Only include `name` field, exclude `_id`
+            select: 'name image' // Only include `name` field, exclude `_id`
         })  
     }
     else if (media == 'Comment') {
@@ -111,7 +133,7 @@ const getUsers = async (req, res, next) => {
         if (!comment) throw new AppError('comment not found', 404)
         likes = await Like.find({ comment_id: comment._id }).populate({
             path: 'user_id',
-            select: 'name' // Only include `name` field, exclude `_id`
+            select: 'name image' // Only include `name` field, exclude `_id`
         })
     }
     else {
@@ -119,7 +141,7 @@ const getUsers = async (req, res, next) => {
         if (!reply) throw new AppError('reply not found', 404)
         likes = await Like.find({ reply_id: reply._id }).populate({
             path: 'user_id',
-            select: 'name' // Only include `name` field, exclude `_id`
+            select: 'name image' // Only include `name` field, exclude `_id`
         })
     }
         users = likes.map(like => like.user_id)
@@ -215,5 +237,14 @@ const deleteUser = async (req,res,next) => {
     }
 }
 
+const usersSearch = async (req,res,next) => {
+    const {q} = req.query   
+    const users = await User.find({ name: { $regex: '^' + q, $options: 'i' }, _id: { $ne: req.user._id } })
+    // users.forEach(user=>{
+    //     const isFriends = Friend.findOne({$or:[{$and:[{user:req.user._id},{friend:user._id},{status:accepted}]},{}]})
+    // })
+    res.json(users)
+}
 
-module.exports = { getUser, addUser, login, updateUser, deleteUser, getUsers, getData }
+
+module.exports = { getUser, addUser, login, updateUser, deleteUser, getUsers, getData, usersSearch }

@@ -10,7 +10,7 @@ router.use(userVerification)
 router.post('/:id', replyUpload.single('file'), addReply)
 router.get('/:id', getReplies)
 router.delete('/:id', deleteReply)
-router.put('/:id', updateReply)
+router.put('/:id', replyUpload.single('file'), updateReply)
 
 
 

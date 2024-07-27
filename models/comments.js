@@ -23,6 +23,7 @@ const commentSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    createdAt: { type: Date, default: Date.now },
     likes:{
         type: Number,
         default:0
@@ -30,7 +31,8 @@ const commentSchema = new mongoose.Schema({
     replies:{
         type: Number,
         default:0
-    }
+    },
+    liked: Boolean  
 })
 
 const commentModel = mongoose.model('comments', commentSchema)

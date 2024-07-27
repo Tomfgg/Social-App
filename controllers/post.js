@@ -31,23 +31,31 @@ const updatePost = async (req, res, next) => {
         if (!post) throw new AppError('post not found', 404);
         if (String(post.user_id) != String(req.user._id)) throw new AppError('Unauthorized', 401);
         const { describtion, toDelete } = req.body
-        const files = req.files
+        const files = req.files 
         if (!describtion && !files && toDelete == post.images) throw new AppError('post data not found', 404);
-        if (toDelete) {
-            for (const file of toDelete) {
+        if (toDelete ) {
+            // console.log(toDelete.length)
+            // if (typeof toDelete === 'string') toDelete= [toDelete]
+            if (toDelete instanceof Array)
+            {for (const file of toDelete) {
                 post.images.pull(file)
                 fs.unlinkSync(path.join(__dirname, '../uploads/posts', file))
+            }}
+            
+            else {
+                post.images.pull(toDelete)
+                fs.unlinkSync(path.join(__dirname, '../uploads/posts', toDelete))
             }
         }
         if (files) {
             for (const file of files) {
-                const dotIndex = file.originalname.lastIndexOf('.')
-                if (dotIndex == -1) throw new AppError('error reading files', 400);
-                const extension = file.originalname.slice(dotIndex + 1)
-                if (!['jpg', 'png'].includes(extension)) throw new AppError('error reading files', 400);
-                const newName = file.originalname + '_' + Date.now()
-                post.images.push(newName)
-                fs.writeFileSync(path.join(__dirname, '../uploads/posts', newName), file.buffer)
+        //         const dotIndex = file.originalname.lastIndexOf('.')
+        //         if (dotIndex == -1) throw new AppError('error reading files', 400);
+        //         const extension = file.originalname.slice(dotIndex + 1)
+        //         if (!['jpg', 'png'].includes(extension)) throw new AppError('error reading files', 400);
+        //         const newName = file.originalname + '_' + Date.now()
+                post.images.push(file.filename)
+        //         fs.writeFileSync(path.join(__dirname, '../uploads/posts', newName), file.buffer)
             }
         }
         if (describtion) post.describtion = describtion
@@ -58,7 +66,29 @@ const updatePost = async (req, res, next) => {
 }
 
 const getMyPosts = async (req, res, next) => {
-    const posts = await Post.find({ user_id: req.user._id }, { user_id: false })
+    const limit = 5
+    const skip = parseInt(req.query.skip)
+    const posts = await Post.find({ user_id: req.user._id }, { user_id: false }).sort({ createdAt: -1 }).skip(skip).limit(limit)
+    const postPromises = posts.map(async post => {
+        const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
+        if (isLiked != null) {
+            post.liked = true;
+        }
+        if (post.images) {
+            post.images = post.images.map(image => `${req.protocol}://${req.get('host')}/postfile/${image}`);
+        }
+    });
+    await Promise.all(postPromises);
+    res.json(posts);
+}
+const getUserPosts = async (req, res, next) => {
+    const {id} = req.params
+    const limit = 5
+    const skip = parseInt(req.query.skip)
+    const posts = await Post.find({ user_id: id }).populate({
+        path: 'user_id',
+        select: 'name image'
+    }).sort({ createdAt: -1 }).skip(skip).limit(limit)
     const postPromises = posts.map(async post => {
         const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
         if (isLiked != null) {
@@ -74,20 +104,23 @@ const getMyPosts = async (req, res, next) => {
 
 const getPosts = async (req, res, next) => {
     const id = req.user._id
-    const friends1 = await Friend.find({ user: id })
+    const limit = 5
+    const skip = parseInt(req.query.skip)
+    const friends1 = await Friend.find({ user: id,status:'accepted' })
     const friendsids1 = friends1.map(friend => friend.friend.toString())
-    const friends2 = await Friend.find({ friend: id })
+    const friends2 = await Friend.find({ friend: id,status:'accepted' })
     const friendsids2 = friends2.map(friend => friend.user.toString())
     const posts = await Post.find({ user_id: { $in: friendsids1.concat(friendsids2) } }).populate({
         path: 'user_id',
-        select: 'name'
-    })
+        select: 'name image'
+    }).sort({createdAt:-1}).skip(skip).limit(limit)
     const postPromises = posts.map(async post => {
         // Check if the user liked the post
         const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
         if (isLiked != null) {
             post.liked = true;
         }
+        // if (post.user_id.image) post.user_id.image = `${req.protocol}://${req.get('host')}/profileImage/${post.user_id.image}`;
 
         // Update image URLs
         if (post.images) {
@@ -103,11 +136,11 @@ const getPosts = async (req, res, next) => {
 }
 
 const getPost = async (req, res, next) => {
-    const { id } = req.params
-    if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)
+    const { id } = req.params       
+    if (!ObjectId.isValid(id)) throw new AppError('invalid post id', 400)           
     const post = await Post.findById(id).populate({
         path: 'user_id',
-        select: 'name'
+        select: 'name'  
     })
     if (!post) throw new AppError('post not found', 404)
     const isLiked = await Like.findOne({ post_id: post._id, user_id: req.user._id });
@@ -183,4 +216,4 @@ const deletePost = async (req, res, next) => {
 
 
 
-module.exports = { addPost, getMyPosts, getPosts, getPost, deletePost, updatePost }
+module.exports = { addPost, getMyPosts, getPosts, getPost, deletePost, updatePost, getUserPosts }

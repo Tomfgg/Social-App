@@ -103,11 +103,11 @@ const getFriends = async (req, res, next) => {
     const id = req.user._id
     const friendsMeUser = await Friend.find({ $and: [{ user: id }, { status: 'accepted' }] }).populate({
         path: 'friend',
-        select: 'name'
+        select: 'name image'
     })
     const friendsMeFriend = await Friend.find({ $and: [{ friend: id }, { status: 'accepted' }] }).populate({
         path: 'user',
-        select: 'name'
+        select: 'name image'
     })
     const part1 = friendsMeUser.map(friend => friend.friend)
     const part2 = friendsMeFriend.map(friend => friend.user)
@@ -118,7 +118,7 @@ const getSentRequests = async (req, res, next) => {
     const id = req.user._id
     const sentRequests = await Friend.find({ $and: [{ user: id }, { status: 'pending' }] }).populate({
         path: 'friend',
-        select: 'name'
+        select: 'name image'
     })
     const sent = sentRequests.map(friend => friend.friend)
     res.json(sent)
@@ -128,10 +128,31 @@ const getReceivedRequests = async (req, res, next) => {
     const id = req.user._id
     const receivedRequests = await Friend.find({ $and: [{ friend: id }, { status: 'pending' }] }).populate({
         path: 'user',
-        select: 'name'
+        select: 'name image'
     })
     const received = receivedRequests.map(friend => friend.user)
     res.json(received)
 }
 
-module.exports = { addFriend, removeFriend, acceptFriend, rejectFriend, getFriends, getSentRequests, getReceivedRequests }
+const withdrawRequest = async (req,res,next)=>{
+    try {
+        const myid = req.user._id
+        const friendid = req.params.id
+        if (friendid == String(req.user._id)) throw new AppError('invalid id', 400)
+        if (!ObjectId.isValid(friendid)) throw new AppError('invalid id', 400)
+        const friend = await User.findById(friendid)
+        if (!friend) throw new AppError('user not found', 404)
+        const request = await Friend.findOne({
+            $and: [{ status: 'pending' },
+            {$and: [{ friend: friendid },{ user: myid }]}]
+        })
+        if (!request) throw new AppError('friend request not found', 404)
+        await request.deleteOne()
+        res.json('friend request removed')
+    }
+    catch (error) {
+        next(error)
+    }
+}
+
+module.exports = { addFriend, removeFriend, acceptFriend, rejectFriend, getFriends, getSentRequests, getReceivedRequests, withdrawRequest }

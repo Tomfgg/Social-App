@@ -20,6 +20,7 @@ const likeSchema = new mongoose.Schema({
         ref: 'users',
         index: true
     },
+    createdAt: { type: Date, default: Date.now }
 });
 
 likeSchema.pre('save', function (next) {

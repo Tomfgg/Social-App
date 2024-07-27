@@ -9,7 +9,7 @@ const replySchema = new mongoose.Schema({
     describtion: {
         type: String,
         required: function () {
-            return !this.files
+            return !this.file
         }
     },
     user_id: {
@@ -26,7 +26,17 @@ const replySchema = new mongoose.Schema({
     likes: {
         type: Number,
         default: 0
-    }
+    },
+    liked: Boolean,
+    toWhoID: {
+        type: String,
+        required: true
+    },
+    toWhoName: {
+        type: String,
+        required: true
+    },
+    createdAt: { type: Date, default: Date.now }
 })
 
 const replyModel = mongoose.model('replies', replySchema)

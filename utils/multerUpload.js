@@ -98,4 +98,36 @@ const replyUpload = multer({
     }
 })
 
-module.exports = { commentUpload, postupload, replyUpload }
+// =================================================================
+const ProfileImageStorage = multer.diskStorage({
+    destination: './uploads/ProfileImage',
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+function checkProfileFileType(file, cb) {
+    // Allowed file extensions
+    const filetypes = /jpeg|jpg|png/;
+    // Check the file extension
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    // Check the MIME type
+    const mimetype = filetypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+        return cb(null, true);
+    } else {
+        cb(new Error('Error: Images or Videos Only!'));
+    }
+}
+
+const ProfileImageUpload = multer({
+    storage: ProfileImageStorage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit per file,
+    fileFilter: (req, file, cb) => {
+        checkProfileFileType(file, cb);
+    }
+})
+
+module.exports = { commentUpload, postupload, replyUpload, ProfileImageUpload }

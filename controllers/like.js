@@ -33,12 +33,12 @@ const processLike = async (req, res, next) => {
             if (like) {
                 await Like.findByIdAndDelete(like._id)
                 const comment = await Comment.findByIdAndUpdate(id, { $inc: { likes: -1 } })
-                await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: -1 } })
+                // await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: -1 } })
             }
             else {
                 await Like.create({ 'user_id': req.user._id, 'comment_id': id })
                 const comment = await Comment.findByIdAndUpdate(id, { $inc: { likes: 1 } })
-                await Post.findByIdAndUpdate(comment._id, { $inc: { likes: 1 } })
+                // await Post.findByIdAndUpdate(comment._id, { $inc: { likes: 1 } })
             }
         }
         else {
@@ -48,14 +48,14 @@ const processLike = async (req, res, next) => {
             if (like) {
                 await Like.findByIdAndDelete(like._id)
                 const reply = await Reply.findByIdAndUpdate(id, { $inc: { likes: -1 } })
-                const comment = await Comment.findByIdAndUpdate(reply.comment_id, { $inc: { likes: -1 } })
-                await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: -1 } })
+                // const comment = await Comment.findByIdAndUpdate(reply.comment_id, { $inc: { likes: -1 } })
+                // await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: -1 } })
             }
             else {
                 await Like.create({ 'user_id': req.user._id, 'reply_id': id })
                 const reply = await Reply.findByIdAndUpdate(id, { $inc: { likes: 1 } })
-                const comment = await Comment.findByIdAndUpdate(reply.comment_id, { $inc: { likes: 1 } })
-                await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: 1 } })
+                // const comment = await Comment.findByIdAndUpdate(reply.comment_id, { $inc: { likes: 1 } })
+                // await Post.findByIdAndUpdate(comment.post_id, { $inc: { likes: 1 } })
             }
         }
         res.json('like processed')

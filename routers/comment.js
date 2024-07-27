@@ -12,7 +12,7 @@ router.use(userVerification)
 router.post('/:id', commentUpload.single('file'), addComment)
 router.get('/:id', getComments)
 router.delete('/:id', deleteComment)
-router.put('/:id', updateComment)
+router.put('/:id', commentUpload.single('file'), updateComment)
 
 
 

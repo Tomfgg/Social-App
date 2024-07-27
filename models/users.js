@@ -26,7 +26,9 @@ const userSchema = new mongoose.Schema({
     relation: {
         type: String,
         enum: ['friend', 'isent', 'ireceived', 'none'] // Allowed values for the 'role' field
-    }
+    },
+    image: String,
+    createdAt: { type: Date, default: Date.now }
 })
 
 const userModel = mongoose.model('users', userSchema)

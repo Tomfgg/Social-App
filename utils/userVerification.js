@@ -5,7 +5,7 @@ require('dotenv').config()
 const secret = process.env.secret
 
 const userVerification = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token =   req.headers.authorization?.split(' ')[1];
     if (!token) return next(new AppError('please provide a token', 401))
     jwt.verify(token, secret, async (err, decode) => {
         try {

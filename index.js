@@ -1,6 +1,7 @@
 const express = require('express')
 const app = express()
 require('dotenv').config()
+const cors = require('cors')
 const port = process.env.PORT || 3000
 const userRoutes = require('./routers/user')
 const postRoutes = require('./routers/post')
@@ -10,10 +11,12 @@ const friendRoutes = require('./routers/friend')
 const commentRoutes = require('./routers/comment')
 require('./utils/db')
 const path = require('path')
+app.use(cors())
 
 app.use('/postFile',express.static(path.join(__dirname, 'uploads/posts')))
 app.use('/commentFile',express.static(path.join(__dirname, 'uploads/comments')))
 app.use('/replyFile',express.static(path.join(__dirname, 'uploads/replies')))
+app.use('/profileImage', express.static(path.join(__dirname, 'uploads/ProfileImage')))
 
 
 app.use(express.urlencoded({ extended: true }));
