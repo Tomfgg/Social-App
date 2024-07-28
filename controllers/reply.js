@@ -20,7 +20,7 @@ const addReply = async (req, res, next) => {
         comment.replies++
         await comment.save()
         await Post.findByIdAndUpdate(comment.post_id, { $inc: { comments: 1 } })
-        if (reply.file) reply.file = 'http://127.0.0.1:5000/replyfile/' + reply.file
+        if (reply.file) reply.file = 'https://social-app-f6f0.onrender.com/replyfile/' + reply.file
         res.json(reply)
 
     }
@@ -47,8 +47,8 @@ const updateReply = async (req, res, next) => {
         }
         if (file) reply.file = file.filename
         await reply.save()
-        if (file) reply.file = `http://127.0.0.1:5000/replyfile/${reply.file}`
-        if (oldFile) reply.file = `http://127.0.0.1:5000/replyfile/${reply.file}`
+        if (file) reply.file = `https://social-app-f6f0.onrender.com/replyfile/${reply.file}`
+        if (oldFile) reply.file = `https://social-app-f6f0.onrender.com/replyfile/${reply.file}`
         res.json(reply)
     }
     catch (err) { next(err) }

@@ -15,7 +15,7 @@ const secret = process.env.SECRET
 
 const getUser = async (req, res, next) => {
     req.user.friends = (await Friend.find({ $and: [{ status: 'accepted' }, { $or: [{ user: req.user._id }, { friend: req.user._id }] }] })).length
-    if(req.user.image) req.user.image = `http://127.0.0.1:5000/profileImage/${req.user.image}`
+    if(req.user.image) req.user.image = `https://social-app-f6f0.onrender.com/profileImage/${req.user.image}`
     return res.json(req.user)   
 }
 
@@ -44,7 +44,7 @@ const getData = async (req, res, next) => {
         return res.json(user)
     }
     user.relation = 'none'
-    // if (user.image) user.image = `http://127.0.0.1:5000/profileImage/${user.image}`
+    // if (user.image) user.image = `https://social-app-f6f0.onrender.com/profileImage/${user.image}`
     res.json(user)  
 }
 
@@ -103,7 +103,7 @@ const updateUser = async function (req, res, next) {
         }
         if (newImage) user.image = newImage.filename
         await user.save()
-        if (newImage) user.image = `http://127.0.0.1:5000/profileImage/${user.image}`
+        if (newImage) user.image = `https://social-app-f6f0.onrender.com/profileImage/${user.image}`
         if (oldImage) user.image = oldImage 
         res.status(200).json(user)
     }

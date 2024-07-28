@@ -18,7 +18,7 @@ const addComment = async (req, res, next) => {
         if (!post) throw new AppError('post not found', 404)
         const comment = await Comment.create({ 'file': req.file?.filename, 'user_id': req.user._id, describtion, 'post_id': id })
         await Post.findByIdAndUpdate(id, { $inc: { comments: 1 } })
-        if (comment.file) comment.file = 'http://127.0.0.1:5000/commentfile/' + comment.file
+        if (comment.file) comment.file = 'https://social-app-f6f0.onrender.com/commentfile/' + comment.file
 
         res.json(comment)
     }
@@ -45,8 +45,8 @@ const updateComment = async (req, res, next) => {
         }
         if (file) comment.file = file.filename
         await comment.save()
-        if (file) comment.file = `http://127.0.0.1:5000/commentfile/${comment.file}`
-        if (oldFile) comment.file = `http://127.0.0.1:5000/commentfile/${comment.file}`
+        if (file) comment.file = `https://social-app-f6f0.onrender.com/commentfile/${comment.file}`
+        if (oldFile) comment.file = `https://social-app-f6f0.onrender.com/commentfile/${comment.file}`
         res.json(comment)
     }
     catch (err) { next(err) }
